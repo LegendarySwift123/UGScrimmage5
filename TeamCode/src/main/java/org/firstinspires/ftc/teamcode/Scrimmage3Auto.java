@@ -41,7 +41,7 @@ public class Scrimmage3Auto extends LinearOpMode {
   String initReport = "";
   double straightSpeed = 0.60;
   double turnSpeed = 0.30;
-  boolean doPaths = true;
+  boolean doPaths = false;
 
   private void doPathA (){
     robot.turnArcRadiusDrive (turnSpeed, 84.0, 80.0);

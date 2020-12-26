@@ -99,6 +99,7 @@ import static org.firstinspires.ftc.teamcode.Pullbot.RingOrientationAnalysisPipe
  * v 2.2  12/1/20: improved nudging and simple driving.
  *        12/2/20 Feature freeze for UGScrimmage2.
  * v 3.0  12/2/20 Initial commit, a copy of UGScrimmage2.
+ * v 3.1  12/9/20 Sigmoid motion profiling added.
  */
 
 public class Pullbot extends GenericFTCRobot {
@@ -135,6 +136,14 @@ public class Pullbot extends GenericFTCRobot {
   static final double COUNTS_PER_INCH =
       (COUNTS_PER_MOTOR_TURN * DRIVE_GEAR_REDUCTION) /
           (DRIVE_WHEEL_DIAMETER * Math.PI);
+  static final double DISTANCE_PER_TURN = DRIVE_WHEEL_DIAMETER * Math.PI;
+  /// 11.00" per second.
+  // NeveRest40 free run: 160 rpm. Go about 80% of that, so encoders work at
+  // high speed under load.
+  static final double MAX_MOTOR_RPM = 129;
+  static final double MAX_WHEEL_TURNS_PER_SECOND = MAX_MOTOR_RPM / 60; //2.15
+  static final double MAX_DRIVE_SPEED =
+      MAX_WHEEL_TURNS_PER_SECOND * DISTANCE_PER_TURN; // 23.64"/s
 
   // Arm related properties
   public final double DEPLOYED = 1.0;   // arm extended in front of the Pullbot
@@ -538,6 +547,39 @@ public class Pullbot extends GenericFTCRobot {
   public void turnArcRadiusDrive(double speed, double arc, double radius) {
     double targetAngle = arc / radius;
     turnAngleRadiusDrive(speed, targetAngle, radius);
+  }
+
+  public double turnArcRadiusSigmoid (double startSpeed, double endSpeed,
+                                      double arc, double radius){
+    double time;
+    double speed;
+    double leftSpeed, rightSpeed;
+    double speedScale = endSpeed - startSpeed;
+    double averageSpeed = (startSpeed + endSpeed) / 2.0;
+    // Todo: What if radius is negative?
+    double turnFudgeFactor =
+        (radius + DRIVE_WHEEL_SEPARATION/2.0) / radius;
+    double time2DoIt = arc / (averageSpeed * MAX_DRIVE_SPEED);
+    runtime.reset();
+    do {
+      time = runtime.time();
+      speed = startSpeed + speedScale * (0.5 - 0.5 * Math.cos(Math.PI * time / time2DoIt));
+      leftSpeed = -speed / turnFudgeFactor;
+      rightSpeed = -speed * turnFudgeFactor;
+      // Normalize speeds so greater is 1, and the lesser is scaled down by the lesser/greater ratio.
+      if (Math.abs(leftSpeed) > 1.0) {
+        rightSpeed = rightSpeed/ Math.abs(leftSpeed);
+        leftSpeed = Math.signum(leftSpeed); // was -1.0
+      }
+      if (Math.abs(rightSpeed) > 1.0) {
+        leftSpeed = leftSpeed/ Math.abs(rightSpeed);
+        rightSpeed = Math.signum(rightSpeed); // was -1.0
+      }
+
+      leftDrive.setPower(leftSpeed);
+      rightDrive.setPower(rightSpeed);
+    } while (time < time2DoIt);
+    return time2DoIt;
   }
 
   // TurnAngleArc not implemented.

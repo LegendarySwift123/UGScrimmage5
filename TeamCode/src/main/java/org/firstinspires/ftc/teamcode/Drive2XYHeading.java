@@ -101,8 +101,10 @@ public class Drive2XYHeading extends LinearOpMode {
     public void runOpMode() {
         // Tune PID coefficients before running the approach.
         while (! gamepad1.y){
-            telemetry.addLine("Tuning controls");
-            telemetry.addLine("  Pad left/right: more/less bearing correction.");
+            telemetry.addLine("Tuning controls. Press yellow Y button to " +
+                "finish tuning, even if no tuning done.");
+            telemetry.addLine("  Pad left/right: more/less Y error correction" +
+                ".");
             telemetry.addLine("  Green B button: more heading correction.");
             telemetry.addLine("  Blue X button: less heading correction.");
             telemetry.addLine("Press the Yellow Y button to finish tuning.");

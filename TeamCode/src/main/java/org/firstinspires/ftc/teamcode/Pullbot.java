@@ -100,6 +100,9 @@ import static org.firstinspires.ftc.teamcode.Pullbot.RingOrientationAnalysisPipe
  *        12/2/20 Feature freeze for UGScrimmage2.
  * v 3.0  12/2/20 Initial commit, a copy of UGScrimmage2.
  * v 3.1  12/9/20 Sigmoid motion profiling added.
+ * v 3.2  12/16/20 Improved PID approach to Blue Tower Goal with Vuforia.
+ * v 3.3beta  12/26/20 Production candidate for Scrimmage 3, and cleanup of
+ *            the 12/24 Pullbot mess.
  */
 
 public class Pullbot extends GenericFTCRobot {

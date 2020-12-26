@@ -54,6 +54,7 @@ import static org.firstinspires.ftc.teamcode.GenericFTCRobot.VUFORIA_KEY;
 import static org.firstinspires.ftc.teamcode.Pullbot.CAMERA_CHOICE;
 
 @TeleOp(name="Drive2XYHeading", group ="Concept")
+// Todo: make a Pullbot method for this.
 //@Disabled
 public class Drive2XYHeading extends LinearOpMode {
 
@@ -280,7 +281,7 @@ public class Drive2XYHeading extends LinearOpMode {
             } else if (!targetVisible) {
                 telemetry.addLine("Visible target lost. Stopping.");
                 robot.leftDrive.setPower(0.0);
-                robot.rightDrive.setPower(0.0); // Todo: make a Pullbot method for this.
+                robot.rightDrive.setPower(0.0);
                 // Todo: try to recover from this by turning on axis, guessing
                 //  from last known position.
             } else {

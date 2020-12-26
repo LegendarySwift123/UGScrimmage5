@@ -136,6 +136,7 @@ public class Navigator extends GenericFTCRobot {
             "cameraMonitorViewId", "id",
             someHWMap.appContext.getPackageName());
     initializationReport += "Camera Id: " + cameraMonitorViewId + ". ";
+    /*
     phoneCam =
         OpenCvCameraFactory.getInstance().createInternalCamera2
             (OpenCvInternalCamera2.CameraDirection.BACK, cameraMonitorViewId);
@@ -147,6 +148,8 @@ public class Navigator extends GenericFTCRobot {
         phoneCam.startStreaming(320, 240, OpenCvCameraRotation.SIDEWAYS_LEFT);
       }
     });
+    
+     */
 
     return initializationReport;
   }

@@ -188,7 +188,7 @@ public class Drive2XYHeading extends LinearOpMode {
       telemetry.update();
     }
     Navigator navigator = new Navigator();
-    telemetry.addLine(navigator.Hello());
+    telemetry.addLine(navigator.init(hardwareMap));
     telemetry.update();
 
     Pullbot robot = new Pullbot(this);

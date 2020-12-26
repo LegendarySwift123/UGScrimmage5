@@ -90,6 +90,7 @@ public class Scrimmage3TeleOp extends LinearOpMode {
 
     private ElapsedTime runtime = new ElapsedTime();
 
+    /*                     = = Vuforia initialization. = =                  */
     // IMPORTANT:  For Phone Camera, set 1) the camera source and 2) the orientation, based on how your phone is mounted:
     // 1) Camera Source.  Valid choices are:  BACK (behind screen) or FRONT (selfie side)
     // 2) Phone Orientation. Choices are: PHONE_IS_PORTRAIT = true (portrait) or PHONE_IS_PORTRAIT = false (landscape)

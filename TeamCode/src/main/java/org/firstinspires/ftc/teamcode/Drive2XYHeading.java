@@ -223,7 +223,7 @@ public class Drive2XYHeading extends LinearOpMode {
     // Load the data sets for the trackable objects. These particular data
     // sets are stored in the 'assets' part of our application.
     VuforiaTrackables targetsUltimateGoal =
-        this.vuforia.loadTrackablesFromAsset("UltimateGoal");
+        navigator.vuforia.loadTrackablesFromAsset("UltimateGoal");
     VuforiaTrackable blueTowerGoalTarget = targetsUltimateGoal.get(0);
     blueTowerGoalTarget.setName("Blue Tower Goal Target");
     VuforiaTrackable redTowerGoalTarget = targetsUltimateGoal.get(1);

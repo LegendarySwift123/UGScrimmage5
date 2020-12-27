@@ -43,6 +43,7 @@ import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackable;
@@ -106,7 +107,7 @@ public class Navigator extends GenericFTCRobot {
   // the height of the center of the target image above the floor
   public static final float mmTargetHeight = (6) * mmPerInch;
   private OpenGLMatrix lastLocation = null;
-  private VuforiaLocalizer vuforia = null;
+  public VuforiaLocalizer vuforia = null;
   private boolean targetVisible = false;
   private float phoneXRotate = 0;
   private float phoneYRotate = 0;
@@ -121,7 +122,6 @@ public class Navigator extends GenericFTCRobot {
   public Navigator() {
     super();
   }
-
   public Navigator(LinearOpMode linearOpMode) {
     currentOpMode = linearOpMode;
   }
@@ -136,20 +136,26 @@ public class Navigator extends GenericFTCRobot {
             "cameraMonitorViewId", "id",
             someHWMap.appContext.getPackageName());
     initializationReport += "Camera Id: " + cameraMonitorViewId + ". ";
-    /*
-    phoneCam =
-        OpenCvCameraFactory.getInstance().createInternalCamera2
-            (OpenCvInternalCamera2.CameraDirection.BACK, cameraMonitorViewId);
+    VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters(cameraMonitorViewId);
 
-    // Open async and start streaming inside opened callback
-    phoneCam.openCameraDeviceAsync(new OpenCvCamera.AsyncCameraOpenListener() {
-      @Override
-      public void onOpened() {
-        phoneCam.startStreaming(320, 240, OpenCvCameraRotation.SIDEWAYS_LEFT);
-      }
-    });
-    
-     */
+    // VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters();
+
+    parameters.vuforiaLicenseKey = VUFORIA_KEY;
+    parameters.cameraDirection   = CAMERA_CHOICE;
+
+    // Make sure extended tracking is disabled for this example.
+    parameters.useExtendedTracking = false;
+
+    //  Instantiate the Vuforia engine
+    vuforia = ClassFactory.getInstance().createVuforia(parameters);
+    initializationReport += "Vuforia engine instantiated.";
+
+    // Load the data sets for the trackable objects. These particular data
+    // sets are stored in the 'assets' part of our application.
+    VuforiaTrackables targetsUltimateGoal =
+        vuforia.loadTrackablesFromAsset("UltimateGoal");
+    initializationReport += "Loaded " + targetsUltimateGoal.size() + " " +
+        "trackables.";
 
     return initializationReport;
   }

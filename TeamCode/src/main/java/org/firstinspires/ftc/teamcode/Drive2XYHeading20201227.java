@@ -50,6 +50,7 @@ import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.XYZ;
 import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.YZX;
 import static org.firstinspires.ftc.robotcore.external.navigation.AxesReference.EXTRINSIC;
 import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
+import static org.firstinspires.ftc.teamcode.Drive2XYHeading.TURN_SPEED;
 
 /**
  * This 2020-2021 OpMode illustrates the basics of using the Vuforia localizer to determine
@@ -132,8 +133,17 @@ public class Drive2XYHeading20201227 extends LinearOpMode {
     private float phoneYRotate    = 0;
     private float phoneZRotate    = 0;
 
+    double yCorrection = -0.04;
+    double headingCorrection = 0.5;
+    static final double STRAIGHT_SPEED = 0.6;
+    static final double TURN_SPEED = 0.2;
+    static final double MAX_CORRECTION = TURN_SPEED;
+    static final double MIN_CORRECTION = -TURN_SPEED;
+
+    double correction = 0.0;
     @Override
     public void runOpMode() {
+        /* Coefficient tuning goes here */
         Pullbot robot = new Pullbot(this);
         String initReport = robot.init(hardwareMap);
         telemetry.addData("Robot status", "initialized.");
@@ -309,18 +319,20 @@ public class Drive2XYHeading20201227 extends LinearOpMode {
             else {
                 telemetry.addData("Visible Target", "none");
             }
+            telemetry.update();
 
        /*     // Use gamepad buttons to move arm up (Y) and down (A)
       if (gamepad1.y)
         robot.arm.setPosition(robot.DEPLOYED);
       else if (gamepad1.a)
         robot.arm.setPosition(robot.STOWED);
-   */
+
             telemetry.addData("Colors",
                 "Red %4d   Green %4d   Blue %4d",
                 robot.colorSensor.red(), robot.colorSensor.green(),
                 robot.colorSensor.blue());
             telemetry.update();
+            */
         }
 
         // Disable Tracking when we are done;

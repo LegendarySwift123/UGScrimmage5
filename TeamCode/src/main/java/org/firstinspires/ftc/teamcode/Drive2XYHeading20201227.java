@@ -203,11 +203,6 @@ public class Drive2XYHeading20201227 extends LinearOpMode {
     telemetry.addData("Robot status", "initialized.");
     telemetry.addData("Initialization report", initReport);
     telemetry.update();
-    // Wait for the game to start (driver presses PLAY)
-    //waitForStart();
-    //while (opModeIsActive()){
-    //    robot.simpleDrive();
-    //}
     /*
      * Configure Vuforia by creating a Parameter object, and passing it to
      * the Vuforia engine.
@@ -383,17 +378,11 @@ public class Drive2XYHeading20201227 extends LinearOpMode {
     targetsUltimateGoal.activate();
 
     while (!isStopRequested()) {
-      // check all the trackable targets to see which one (if any) is visible.
       targetVisible = false;
       for (VuforiaTrackable trackable : allTrackables) {
         if (((VuforiaTrackableDefaultListener) trackable.getListener()).isVisible()) {
           telemetry.addData("Visible Target", trackable.getName());
           targetVisible = true;
-
-          // getUpdatedRobotLocation() will return null if no new information
-            // is available since
-          // the last time that call was made, or if the trackable is not
-            // currently visible.
           OpenGLMatrix robotLocationTransform =
               ((VuforiaTrackableDefaultListener) trackable.getListener()).getUpdatedRobotLocation();
           if (robotLocationTransform != null) {
@@ -403,24 +392,85 @@ public class Drive2XYHeading20201227 extends LinearOpMode {
         }
       }
 
-      // Provide feedback as to where the robot is located (if we know).
-      if (targetVisible && Math.abs(errorX) > ERROR_X_TOLERANCE) {
-        // express position (translation) of robot in inches.
+      // Report robot location and heading (if we know).
+      if (targetVisible) {
         VectorF translation = lastLocation.getTranslation();
-        telemetry.addData("Pos (in)", "{X, Y, Z} = %.1f, %.1f, %.1f",
-            translation.get(0) / mmPerInch, translation.get(1) / mmPerInch,
-            translation.get(2) / mmPerInch);
-
-        // express the rotation of the robot in degrees.
-        Orientation rotation = Orientation.getOrientation(lastLocation,
-            EXTRINSIC, XYZ, DEGREES);
-        telemetry.addData("Rot (deg)", "{Roll, Pitch, Heading} = %.0f, %.0f, " +
-            "%.0f", rotation.firstAngle, rotation.secondAngle,
-            rotation.thirdAngle);
+        telemetry.addData("Pos ", "{X, Y} = %5.1f\", %5.1f\"",
+            translation.get(0) / GenericFTCRobot.mmPerInch,
+            translation.get(1) / GenericFTCRobot.mmPerInch);
+        Orientation rotation =
+            Orientation.getOrientation(lastLocation, EXTRINSIC,
+                XYZ, DEGREES);
+        telemetry.addData("Heading", "%4.0f\u00B0", rotation.thirdAngle);
       } else {
         telemetry.addData("Visible Target", "none");
       }
       telemetry.update();
+      // Report where the robot is located, if we can see a Vuforia image.
+      if (targetVisible && Math.abs(errorX) > ERROR_X_TOLERANCE) {
+
+        // Report position (translation) and position error of robot in inches.
+        VectorF translation = lastLocation.getTranslation();
+        currentX = translation.get(0) / GenericFTCRobot.mmPerInch;
+        currentY = translation.get(1) / GenericFTCRobot.mmPerInch;
+        errorX = currentX - targetX;
+        errorY = currentY - targetY;
+        telemetry.addData("Position error", "X, Y = %4.1f, %4.1f",
+            errorX, errorY);
+
+        // Report bearing and bearing error of target from robot.
+        currentBearingRadians = Math.atan2(-errorY, -errorX);
+        currentBearingDegrees = currentBearingRadians * 180.0 / Math.PI;
+        errorBearingRadians = currentBearingRadians - targetBearingRadians;
+        errorBearingDegrees = errorBearingRadians * 180.0 / Math.PI;
+        telemetry.addData("Bearing", " %4.0f\u00B0  error: %4.0f\u00B0",
+            currentBearingDegrees, errorBearingDegrees);
+
+        // Report robot heading in degrees, and error of that heading.
+        Orientation rotation =
+            Orientation.getOrientation(lastLocation, EXTRINSIC,
+                XYZ,
+                DEGREES);
+        currentHeadingDegrees = rotation.thirdAngle;
+        currentHeadingRadians = currentHeadingDegrees * Math.PI / 180.0;
+        errorHeadingDegrees = currentHeadingDegrees - targetHeadingDegrees;
+        errorBearingRadians = currentBearingRadians - targetBearingRadians;
+        errorHeadingRadians = errorHeadingDegrees * Math.PI / 180.0;
+        telemetry.addData(
+            "Heading", "%4.0f\u00B0  Heading error %4.0f\u00B0",
+            currentHeadingDegrees, errorHeadingDegrees);
+
+        // find motor speed corrections.
+        correction =
+            yCorrection * errorY - headingCorrection * errorHeadingRadians;
+        correction = Math.min(Math.max(correction, MIN_CORRECTION),
+            MAX_CORRECTION);
+        // Todo: slow down when errorX gets small.
+
+        //  Apply those corrections to drive motors.
+        // This is a Pullbot, not a Pushbot.
+        robot.leftDrive.setPower(-TURN_SPEED + correction);
+        robot.rightDrive.setPower(-TURN_SPEED - correction);
+        telemetry.addData("Motor speeds",
+            "correction %5.3f left %5.3f right %5.3f",
+            correction, TURN_SPEED - correction, TURN_SPEED + correction);
+
+      } else if (!targetVisible) {
+        telemetry.addLine("Visible target lost. Stopping.");
+        robot.leftDrive.setPower(0.0);
+        robot.rightDrive.setPower(0.0);
+        // Todo: try to recover from this by turning on axis, guessing
+        //  from last known position.
+      } else {
+        telemetry.addLine("We have arrived. Stopping.");
+        // Clean up residual heading error.
+        robot.turnAngle(TURN_SPEED, -errorHeadingRadians);
+        robot.leftDrive.setPower(0.0);
+        robot.rightDrive.setPower(0.0);
+        // Disable tracking when we are done.
+        targetsUltimateGoal.deactivate();
+        stop();
+      }
     }
 
     // Disable Tracking when we are done;

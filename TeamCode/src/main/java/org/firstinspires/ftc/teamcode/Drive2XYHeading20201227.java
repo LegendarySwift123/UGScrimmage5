@@ -197,7 +197,39 @@ public class Drive2XYHeading20201227 extends LinearOpMode {
 
   @Override
   public void runOpMode() {
-    /* Coefficient tuning goes here */
+    while (!gamepad1.y) {
+      telemetry.addLine("Tuning controls. Press yellow Y button to " +
+          "finish tuning, even if no tuning done.");
+      telemetry.addLine("  Pad left/right: more/less Y error correction" +
+          ".");
+      telemetry.addLine("  Green B button: more heading correction.");
+      telemetry.addLine("  Blue X button: less heading correction.");
+      telemetry.addLine("Press the Yellow Y button to finish tuning.");
+      if (gamepad1.dpad_right) {
+        gamepad1.dpad_right = false;
+        yCorrection *= 1.1;
+        sleep(300);
+      }
+      if (gamepad1.dpad_left) {
+        gamepad1.dpad_left = false;
+        yCorrection /= 1.1;
+        sleep(300);
+      }
+      if (gamepad1.b) {
+        gamepad1.b = false;
+        headingCorrection *= 1.1;
+        sleep(300);
+      }
+      if (gamepad1.x) {
+        gamepad1.x = false;
+        headingCorrection /= 1.1;
+        sleep(300);
+      }
+      telemetry.addData("Bearing correction",
+          " %5.3f  Heading correction %5.3f", yCorrection,
+          headingCorrection);
+      telemetry.update();
+    }
     Pullbot robot = new Pullbot(this);
     String initReport = robot.init(hardwareMap);
     telemetry.addData("Robot status", "initialized.");

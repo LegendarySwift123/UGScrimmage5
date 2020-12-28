@@ -40,6 +40,7 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
@@ -59,13 +60,57 @@ import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.YZX;
 import static org.firstinspires.ftc.robotcore.external.navigation.AxesReference.EXTRINSIC;
 import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
 
+/**
+ * This 2020-2021 OpMode illustrates the basics of using the Vuforia
+ * localizer to determine
+ * positioning and orientation of robot on the ULTIMATE GOAL FTC field.
+ * The code is structured as a LinearOpMode
+ * <p>
+ * When images are located, Vuforia is able to determine the position and
+ * orientation of the
+ * image relative to the camera.  This sample code then combines that
+ * information with a
+ * knowledge of where the target images are on the field, to determine the
+ * location of the camera.
+ * <p>
+ * From the Audience perspective, the Red Alliance station is on the right
+ * and the
+ * Blue Alliance Station is on the left.
+ * <p>
+ * There are a total of five image targets for the ULTIMATE GOAL game.
+ * Three of the targets are placed in the center of the Red Alliance,
+ * Audience (Front),
+ * and Blue Alliance perimeter walls.
+ * Two additional targets are placed on the perimeter wall, one in front of
+ * each Tower Goal.
+ * Refer to the Field Setup manual for more specific location details
+ * <p>
+ * A final calculation then uses the location of the camera on the robot to
+ * determine the
+ * robot's location and orientation on the field.
+ *
+ * @see VuforiaLocalizer
+ * @see VuforiaTrackableDefaultListener
+ * see  ultimategoal/doc/tutorial/FTC_FieldCoordinateSystemDefinition.pdf
+ * <p>
+ * Use Android Studio to Copy this Class, and Paste it into your team's code
+ * folder with a new name.
+ * Remove or comment out the @Disabled line to add this opmode to the Driver
+ * Station OpMode list.
+ * <p>
+ * IMPORTANT: In order to use this OpMode, you need to obtain your own
+ * Vuforia license key as
+ * is explained below.
+ */
+
+
 @TeleOp(name = "Drive2XYHeading", group = "Concept")
-// Todo: make a Pullbot method for this.
 //@Disabled
 public class Drive2XYHeading extends LinearOpMode {
 
-  /*                     = = Vuforia initialization. = =                  */
+  private ElapsedTime runtime = new ElapsedTime();
 
+  /*                     = = Vuforia initialization. = =                  */
   // IMPORTANT:  For Phone Camera, set 1) the camera source and 2) the
   // orientation, based on how your phone is mounted:
   // 1) Camera Source.  Valid choices are:  BACK (behind screen) or FRONT
@@ -118,6 +163,12 @@ public class Drive2XYHeading extends LinearOpMode {
   private float phoneYRotate = 0;
   private float phoneZRotate = 0;
 
+  double yCorrection = -0.04;
+  double headingCorrection = 0.5;
+  static final double STRAIGHT_SPEED = 0.6;
+  static final double TURN_SPEED = 0.2;
+  static final double MAX_CORRECTION = TURN_SPEED;
+  static final double MIN_CORRECTION = -TURN_SPEED;
   double targetX = 74.0; // Aim for robot front to end up near the picture.
   double currentX = 0;  // We'll refine this by Vuforia if target image is
   // visible.
@@ -142,18 +193,10 @@ public class Drive2XYHeading extends LinearOpMode {
   double currentBearingDegrees;
   double errorBearingDegrees;
 
-  static final double DRIVE_SPEED = 0.6;
-  static final double TURN_SPEED = 0.2;
-  double yCorrection = -0.04;
-  double headingCorrection = 0.5;
-  static final double MAX_CORRECTION = TURN_SPEED;
-  static final double MIN_CORRECTION = -TURN_SPEED;
-
   double correction = 0.0;
 
   @Override
   public void runOpMode() {
-    // Tune PID coefficients before running the approach.
     while (!gamepad1.y) {
       telemetry.addLine("Tuning controls. Press yellow Y button to " +
           "finish tuning, even if no tuning done.");
@@ -187,12 +230,11 @@ public class Drive2XYHeading extends LinearOpMode {
           headingCorrection);
       telemetry.update();
     }
-    Navigator navigator = new Navigator();
-    telemetry.addLine(navigator.init(hardwareMap));
-    telemetry.update();
-
     Pullbot robot = new Pullbot(this);
-    robot.init(hardwareMap);
+    String initReport = robot.init(hardwareMap);
+    telemetry.addData("Robot status", "initialized.");
+    telemetry.addData("Initialization report", initReport);
+    telemetry.update();
     /*
      * Configure Vuforia by creating a Parameter object, and passing it to
      * the Vuforia engine.
@@ -223,7 +265,7 @@ public class Drive2XYHeading extends LinearOpMode {
     // Load the data sets for the trackable objects. These particular data
     // sets are stored in the 'assets' part of our application.
     VuforiaTrackables targetsUltimateGoal =
-        navigator.vuforia.loadTrackablesFromAsset("UltimateGoal");
+        this.vuforia.loadTrackablesFromAsset("UltimateGoal");
     VuforiaTrackable blueTowerGoalTarget = targetsUltimateGoal.get(0);
     blueTowerGoalTarget.setName("Blue Tower Goal Target");
     VuforiaTrackable redTowerGoalTarget = targetsUltimateGoal.get(1);
@@ -367,8 +409,6 @@ public class Drive2XYHeading extends LinearOpMode {
 
     targetsUltimateGoal.activate();
 
-    waitForStart();
-
     while (!isStopRequested()) {
       targetVisible = false;
       for (VuforiaTrackable trackable : allTrackables) {
@@ -464,5 +504,8 @@ public class Drive2XYHeading extends LinearOpMode {
         stop();
       }
     }
+
+    // Disable Tracking when we are done;
+    targetsUltimateGoal.deactivate();
   }
 }

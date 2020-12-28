@@ -50,7 +50,6 @@ import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.XYZ;
 import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.YZX;
 import static org.firstinspires.ftc.robotcore.external.navigation.AxesReference.EXTRINSIC;
 import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
-import static org.firstinspires.ftc.teamcode.Drive2XYHeading.TURN_SPEED;
 
 /**
  * This 2020-2021 OpMode illustrates the basics of using the Vuforia localizer to determine
@@ -139,6 +138,29 @@ public class Drive2XYHeading20201227 extends LinearOpMode {
     static final double TURN_SPEED = 0.2;
     static final double MAX_CORRECTION = TURN_SPEED;
     static final double MIN_CORRECTION = -TURN_SPEED;
+    double targetX = 74.0; // Aim for robot front to end up near the picture.
+    double currentX = 0;  // We'll refine this by Vuforia if target image is
+    // visible.
+    double errorX = currentX - targetX;
+    static final double ERROR_X_TOLERANCE = 16.0;
+    // avoids large and unstable bearing changes on final approach.
+    double targetY = 35.5; // Also so robot can be near the picture.
+    double currentY;
+    double errorY;
+    static final double ERROR_Y_TOLERANCE = 1.0;
+    double targetHeadingDegrees = 0.0;
+    double targetHeadingRadians = targetHeadingDegrees * Math.PI / 180.0;
+    double currentHeadingDegrees;
+    double currentHeadingRadians;
+    double errorHeadingDegrees;
+    double errorHeadingRadians;
+
+    double targetBearingRadians = 0.0;
+    double targetBearingDegrees = targetBearingRadians * 180 / Math.PI;
+    double currentBearingRadians;
+    double errorBearingRadians;
+    double currentBearingDegrees;
+    double errorBearingDegrees;
 
     double correction = 0.0;
     @Override
@@ -285,9 +307,6 @@ public class Drive2XYHeading20201227 extends LinearOpMode {
         targetsUltimateGoal.activate();
 
         while (!isStopRequested()) {
-            //robot.simpleDrive();
-            //robot.tankDrive();
-            //robot.enableNudge();
             // check all the trackable targets to see which one (if any) is visible.
             targetVisible = false;
             for (VuforiaTrackable trackable : allTrackables) {
@@ -306,7 +325,7 @@ public class Drive2XYHeading20201227 extends LinearOpMode {
             }
 
             // Provide feedback as to where the robot is located (if we know).
-            if (targetVisible) {
+            if (targetVisible&& Math.abs(errorX) > ERROR_X_TOLERANCE) {
                 // express position (translation) of robot in inches.
                 VectorF translation = lastLocation.getTranslation();
                 telemetry.addData("Pos (in)", "{X, Y, Z} = %.1f, %.1f, %.1f",
@@ -320,19 +339,6 @@ public class Drive2XYHeading20201227 extends LinearOpMode {
                 telemetry.addData("Visible Target", "none");
             }
             telemetry.update();
-
-       /*     // Use gamepad buttons to move arm up (Y) and down (A)
-      if (gamepad1.y)
-        robot.arm.setPosition(robot.DEPLOYED);
-      else if (gamepad1.a)
-        robot.arm.setPosition(robot.STOWED);
-
-            telemetry.addData("Colors",
-                "Red %4d   Green %4d   Blue %4d",
-                robot.colorSensor.red(), robot.colorSensor.green(),
-                robot.colorSensor.blue());
-            telemetry.update();
-            */
         }
 
         // Disable Tracking when we are done;

@@ -103,6 +103,7 @@ import static org.firstinspires.ftc.teamcode.Pullbot.RingOrientationAnalysisPipe
  * v 3.2  12/16/20 Improved PID approach to Blue Tower Goal with Vuforia.
  * v 3.3beta  12/26/20 Production candidate for Scrimmage 3, and cleanup of
  *            the 12/24 Pullbot mess.
+ * v 3.3.1    12/28/20 beta merged with 3.2.
  */
 
 public class Pullbot extends GenericFTCRobot {

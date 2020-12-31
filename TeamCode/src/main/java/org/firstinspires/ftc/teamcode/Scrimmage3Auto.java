@@ -56,6 +56,7 @@ public class Scrimmage3Auto extends LinearOpMode {
     //  Push Wobbler to Goal Zone C
     //robot.turnArcRadiusDrive (turnSpeed, 123.0, 157.0);
     //robot.turnArcRadiusDrive (turnSpeed, -46.0, 157.0);
+    // Todo: why does this perform a little differently from PathCSigmoid?
     robot.turnArcRadiusSigmoid(0.0, 1.0, 24.0, 190.0);
     robot.turnArcRadiusSigmoid(1.0, 1.0, 60.0, 190.0);
     robot.turnArcRadiusSigmoid(1.0, 0.0, 24.0, 190.0);

@@ -66,7 +66,7 @@ import org.openftc.easyopencv.OpenCvPipeline;
 import java.util.ArrayList;
 
 import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
-import static org.firstinspires.ftc.teamcode.Pullbot.RingOrientationAnalysisPipeline.Stage.values;
+
 
 /**
  * This is NOT an opmode.
@@ -103,31 +103,41 @@ import static org.firstinspires.ftc.teamcode.Pullbot.RingOrientationAnalysisPipe
  * v 3.2  12/16/20 Improved PID approach to Blue Tower Goal with Vuforia.
  * v 3.3beta  12/26/20 Production candidate for Scrimmage 3, and cleanup of
  *            the 12/24 Pullbot mess.
- * v 3.3.1    12/28/20 beta merged with 3.2.
+ * v 3.3  1/4/21 Simplified Ring shape detection.
  */
 
 public class Pullbot extends GenericFTCRobot {
 
   // Vision properties
   public OpenCvInternalCamera2 phoneCam;
-  public RingOrientationAnalysisPipeline pipeline;
+  public RingOrientationAnalysisPipeline ringPipeline;
+  // Where the camera lens with respect to the robot.
+  // On this robot class, it is centered (left to right), over the drive
+  // wheel axis.
+  public static final float CAMERA_FORWARD_DISPLACEMENT =
+      4.0f * GenericFTCRobot.mmPerInch;   //
+  // eg:
+  // Camera is 4 Inches in front of robot center
+  public static final float CAMERA_VERTICAL_DISPLACEMENT =
+      8.0f * GenericFTCRobot.mmPerInch;   // eg:
+  // Camera is 8 Inches above ground
+  public static final float CAMERA_LEFT_DISPLACEMENT = 0;     // eg: Camera
+  // is ON the robot's center line
   public static boolean PHONE_IS_PORTRAIT = false;
   public int cameraMonitorViewId;
   public static final int tooFarRight = 100;
   public static final int tooHigh = 140;
   public static final int tooWide = 70;
-  public static final int tooTall = 50;
-
+  public static final int tooTall = 60;
 
   // Field related constants.
-  public static final float mmPerInch = 25.4f; // use mm dimensions
   // Constants for perimeter Vuforia navigation targets
   // Field outside: 12'. Inside: 1" shorter than that, each Wall.
-  public static final float fullField = 142 * mmPerInch;
+  public static final float fullField = 142 * GenericFTCRobot.mmPerInch;
   public static final float halfField = fullField / 2;
   public static final float quarterField = fullField / 4;
   // the height of the center of the target image above the floor
-  public static final float mmTargetHeight = (6) * mmPerInch;
+  public static final float mmTargetHeight = (6) * GenericFTCRobot.mmPerInch;
 
   /* Drive train. */
   // Drive train related constants in inches.
@@ -170,13 +180,14 @@ public class Pullbot extends GenericFTCRobot {
   public Pullbot() {
     super();
   }
+
   public Pullbot(LinearOpMode linearOpMode) {
     currentOpMode = linearOpMode;
   }
 
   public String init(HardwareMap someHWMap) {
     hwMap = someHWMap;
-    String initializationReport = "";
+    String initializationReport = "Pullbot initialization: ";
     // Initialize vision hardware.
     colorSensor = hwMap.get(ColorSensor.class, "colorSensor");
 
@@ -190,20 +201,15 @@ public class Pullbot extends GenericFTCRobot {
         OpenCvCameraFactory.getInstance().createInternalCamera2
             (OpenCvInternalCamera2.CameraDirection.BACK, cameraMonitorViewId);
 
-
     // Open async and start streaming inside opened callback
     phoneCam.openCameraDeviceAsync(new OpenCvCamera.AsyncCameraOpenListener() {
       @Override
       public void onOpened() {
         phoneCam.startStreaming(320, 240, OpenCvCameraRotation.SIDEWAYS_LEFT);
-
-        pipeline = new RingOrientationAnalysisPipeline();
-        phoneCam.setPipeline(pipeline);
+        ringPipeline = new RingOrientationAnalysisPipeline();
+        phoneCam.setPipeline(ringPipeline);
       }
     });
-    //initializationReport += "Camera is set up. Pipeline ";
-    //initializationReport += (pipeline == null) ? "empty. ": "ready. ";
-
 
     // Define and initialize motors. Stop them.
     leftDrive = hwMap.get(DcMotorEx.class, "motor0");
@@ -215,8 +221,8 @@ public class Pullbot extends GenericFTCRobot {
 
     // Set all motors to run without encoders.
     // May want to use RUN_USING_ENCODERS if encoders are installed.
-    leftDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-    rightDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    leftDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+    rightDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
     // Define and initialize installed servos.
     arm = hwMap.get(Servo.class, "arm");
@@ -229,50 +235,52 @@ public class Pullbot extends GenericFTCRobot {
    */
 
   static class RingOrientationAnalysisPipeline extends OpenCvPipeline {
-
-    //   RGB colors.
+    //    Colors used to draw bounding rectangles.
+    //    Todo: do this for Blue Wobble Goal mast. A later Pullbot may be
+    //    able to look for one and grab it.
     static final Scalar RED = new Scalar(255, 0, 0);
     static final Scalar GREEN = new Scalar(0, 255, 0);
     static final Scalar BLUE = new Scalar(0, 0, 255);
-    //    Threshold values.
+    //    Threshold is how loosely or tightly to accept colors.
     static final int CB_CHAN_MASK_THRESHOLD = 110;
-    // Todo: find threshold for  Blue Wobble Goal mast. A later Pullbot may be
-    //  able to look for one and grab it.
+    //    Marking rectangles or other detected shapes.
     static final int CONTOUR_LINE_THICKNESS = 2;
     static final int CB_CHAN_IDX = 2;
-    //    Our working image buffers.
-    Mat cbMat = new Mat();
-    Mat thresholdMat = new Mat();
-    Mat morphedThreshold = new Mat();
-    Mat contoursOnPlainImageMat = new Mat();
-    //   The elements we use for noise reduction.
-    Mat erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT,
+    //    Buffers (matrices) hold image pixels for processing.
+    Mat cbMat = new Mat();  // A new buffer.
+    Mat thresholdMat = new Mat(); // Accepted or rejected pixels.
+    Mat morphedThreshold = new Mat(); // Buffer with smoothed edges.
+    //   Buffers used in the smoothing process.
+    Mat erodedElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT,
         new Size(3, 3));
-    Mat dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT,
+    Mat dilatedElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT,
         new Size(6, 6));
+    // Detected shapes pasted onto the processed image.
+    Mat contoursOnPlainImageMat = new Mat();
+
+    // Lists of Ring candidates.
     ArrayList<AnalyzedRing> internalRingList = new ArrayList<>();
     volatile ArrayList<AnalyzedRing> clientRingList = new ArrayList<>();
-    Stage[] stages = values();
-    //   Currently displayed stage buffer.
+    RingStage[] stages = RingStage.values();
+    //   Currently displayed processing stage.
     int stageNum = 0;
 
     static void drawRotatedRect(RotatedRect rect, Mat drawOn) {
       //   Draws a rotated rect by drawing each of the 4 lines individually.
-      Point[] points = new Point[4];
+      Point[] points = new Point[4]; // corners.
       rect.points(points);
-
       for (int i = 0; i < 4; ++i) {
         Imgproc.line(drawOn, points[i], points[(i + 1) % 4], GREEN, 2);
       }
     }
 
-    @Override
+    @Override // Overrides method of OpenCVPipeline
     public Mat processFrame(Mat input) {
-      // We'll be updating input with new data below.
+      // Look for shapes in the image buffer.
       internalRingList.clear();
 
-      //   Process the image.
-      for (MatOfPoint contour : findContours(input)) {
+      //   Look for edges separating accepted from rejected pixels.
+      for (MatOfPoint contour : findRingContours(input)) {
         analyzeContour(contour, input);
       }
       clientRingList = new ArrayList<>(internalRingList);
@@ -283,49 +291,50 @@ public class Pullbot extends GenericFTCRobot {
       return clientRingList;
     }
 
-    ArrayList<MatOfPoint> findContours(Mat input) {
-      // A list we'll be using to store the contours we find.
-      ArrayList<MatOfPoint> contoursList = new ArrayList<>();
+    ArrayList<MatOfPoint> findRingContours(Mat input) {
+      // Set up the acceptable Ring colors.
+      ArrayList<MatOfPoint> ringContoursList = new ArrayList<>();
 
       // Convert the input image to YCrCb color space, then extract the Cb
-      // channel.
+      // channel. Cb looks for blue, no matter the lighting.
       Imgproc.cvtColor(input, cbMat, Imgproc.COLOR_RGB2YCrCb);
-      Core.extractChannel(cbMat, cbMat, CB_CHAN_IDX);
+      Core.extractChannel(cbMat, cbMat, 2);
 
-      // Threshold the Cb channel to form a mask, then run some noise reduction.
+      // Threshold the Cb channel to form a mask and invert it.
       Imgproc.threshold(cbMat, thresholdMat, CB_CHAN_MASK_THRESHOLD, 255,
-          Imgproc.THRESH_BINARY_INV);
+          Imgproc.THRESH_BINARY_INV); // inverted blue is yellow.
+
+      // Smooth the mask edges.
       morphMask(thresholdMat, morphedThreshold);
 
-      // Ok, now actually look for the contours! We only look for external
-      // contours.
-      Imgproc.findContours(morphedThreshold, contoursList, new Mat(),
+      // Look for the contours enclosing acceptable Ring colors.
+      Imgproc.findContours(morphedThreshold, ringContoursList, new Mat(),
           Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
 
-      // We do draw the contours we find, but not to the main input buffer.
+      // Draw edges for the contours we find, but not to the main input buffer.
       input.copyTo(contoursOnPlainImageMat);
-      Imgproc.drawContours(contoursOnPlainImageMat, contoursList, -1,
+      Imgproc.drawContours(contoursOnPlainImageMat, ringContoursList, -1,
           BLUE, CONTOUR_LINE_THICKNESS, 8);
 
-      return contoursList;
+      return ringContoursList;
     }
 
     void morphMask(Mat input, Mat output) {
-      //   Noise reduction.
-      Imgproc.erode(input, output, erodeElement);
-      Imgproc.erode(output, output, erodeElement);
-      Imgproc.dilate(output, output, dilateElement);
-      Imgproc.dilate(output, output, dilateElement);
+      //   Noise reduction. Take off some of the raggedy border area, then
+      //   puff it back out. That will smooth the border area.
+      Imgproc.erode(input, output, erodedElement);
+      Imgproc.erode(output, output, erodedElement);
+      Imgproc.dilate(output, output, dilatedElement);
+      Imgproc.dilate(output, output, dilatedElement);
     }
 
     void analyzeContour(MatOfPoint contour, Mat input) {
-      boolean isMaybeRing = true;
       AnalyzedRing analyzedRing = new AnalyzedRing();
       //   Transform the contour to a different format.
       Point[] points = contour.toArray();
       MatOfPoint2f contour2f = new MatOfPoint2f(contour.toArray());
 
-      //   Do a rect fit to the contour, and draw it on the screen.
+      //   Draw a rectangle that best fits the  contour.
       RotatedRect rotatedRectFitToContour =
           Imgproc.minAreaRect(contour2f);
       drawRotatedRect(rotatedRectFitToContour, input);
@@ -335,26 +344,19 @@ public class Pullbot extends GenericFTCRobot {
       analyzedRing.top = rotatedRectFitToContour.boundingRect().y;
       analyzedRing.left = rotatedRectFitToContour.boundingRect().x;
       analyzedRing.height = rotatedRectFitToContour.boundingRect().height;
-      //   Throw out "Rings" not in proper position.
-      if (analyzedRing.top < tooHigh) isMaybeRing = false;
-      if (analyzedRing.left > tooFarRight) isMaybeRing = false;
-      if (analyzedRing.width > tooWide) isMaybeRing = false;
-      if (analyzedRing.height > tooTall) isMaybeRing = false;
-      // TODO: consolidate these with filter code in CountRings.
-      if (isMaybeRing) {
-        internalRingList.add(analyzedRing);
-        // The angle OpenCV gives us can be ambiguous, so look at the shape of
-        // the rectangle to fix that.
-        double rotRectAngle = rotatedRectFitToContour.angle;
-        if (rotatedRectFitToContour.size.width < rotatedRectFitToContour.size.height) {
-          rotRectAngle += 90;
-        }
+      internalRingList.add(analyzedRing);
+      // The angle OpenCV gives us can be ambiguous, so look at the shape of
+      // the rectangle to fix that. This angle is not used for Rings, but
+      // will be used for Wobblers.
+      double rotRectAngle = rotatedRectFitToContour.angle;
+      if (rotatedRectFitToContour.size.width < rotatedRectFitToContour.size.height) {
+        rotRectAngle += 90;
       }
     }
 
     //   Pipeline processing stages. Different image buffers are available at
     //   each one.
-    enum Stage {
+    enum RingStage {
       FINAL,
       Cb,
       MASK,
@@ -371,20 +373,24 @@ public class Pullbot extends GenericFTCRobot {
     }
   }
 
-  int CountRings (int viewID){
+  //    Use the detected rectangles to count Rings. Taller means more Rings.
+  int CountRings(int viewID) {
     int ringsDetected = 0;
 
     ArrayList<RingOrientationAnalysisPipeline.AnalyzedRing> rings =
-        pipeline.getDetectedRings();
+        ringPipeline.getDetectedRings();
+    // Todo: clean up the logic here.
     if (rings.isEmpty()) {
       // ringsDetected will be left at zero.
     } else {
       for (RingOrientationAnalysisPipeline.AnalyzedRing ring :
           rings) {
-        if (ring.left > 100) continue;
-        if (ring.top < 0) continue;
-        if (ring.width > 100) continue;
-        if (ring.height > 60 ) continue;
+        if (ring.left > tooFarRight) continue; // reject this "Ring".
+        if (ring.top < tooHigh) continue;
+        if (ring.width > tooWide) continue;
+        if (ring.height > tooTall) continue;
+        // This rectangle is in the correct position. How many Rings are
+        // stacked in it?
         if (ring.aspectRatio > 1 && ring.aspectRatio <= 2) ringsDetected = 4;
         if (ring.aspectRatio > 2 && ring.aspectRatio <= 4) ringsDetected = 1;
       }
@@ -401,7 +407,7 @@ public class Pullbot extends GenericFTCRobot {
 
   /*                      Primitive layer.                    */
   // Task layer methods are built up out of members at this layer.
-  private double temperedControl (double input) {
+  private double temperedControl(double input) {
     return Math.pow(input, 3.0);
   }
 
@@ -416,24 +422,21 @@ public class Pullbot extends GenericFTCRobot {
     rightDrive.setZeroPowerBehavior(someBehavior);
   }
 
-  public void moveMotor (DcMotor motor, double speed, double inches) {
+  public void moveMotor(DcMotor motor, double speed, double inches) {
     int newTarget;
 
-    // Determine new target position, and pass to motor controller.
+    // Determine new target position, and pass it to motor controller.
     // Negative target because Pullbot motors pull, not push.
     newTarget = (int) (-inches * COUNTS_PER_INCH);
     motor.setTargetPosition(newTarget);
-
-    // Turn On RUN_TO_POSITION
     setDriveRunMode(DcMotor.RunMode.RUN_TO_POSITION);
 
     // Go!
     motor.setPower(Math.abs(speed));
-
-    // keep looping while we are still active, and both motors are running.
     while (motor.isBusy()) {
       // Wait until motor is done before doing anything else.
     }
+
     // Clean up, prepare for next segment.
     motor.setPower(0);
   }
@@ -444,52 +447,65 @@ public class Pullbot extends GenericFTCRobot {
     int newLeftTarget;
     int newRightTarget;
 
-    //  Discard current encoder positions.
+    //  Discard current motor encoder positions.
     setDriveStopBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     setDriveRunMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
-    // Determine new target positions, and pass to motor controller.
+    // Determine new target positions, and pass it to motor controller.
     // Negative targets because Pullbot motors pull, not push.
     newLeftTarget = (int) (-leftInches * COUNTS_PER_INCH);
     newRightTarget = (int) (-rightInches * COUNTS_PER_INCH);
     leftDrive.setTargetPosition(newLeftTarget);
     rightDrive.setTargetPosition(newRightTarget);
 
-    // Turn On RUN_TO_POSITION
     setDriveRunMode(DcMotor.RunMode.RUN_TO_POSITION);
 
     // Go!
     leftDrive.setPower(Math.abs(leftSpeed));
     rightDrive.setPower(Math.abs(rightSpeed));
 
-    // keep looping while we are still active, and both motors are running.
     while (leftDrive.isBusy() && rightDrive.isBusy()) {
       // Wait until motors done before doing anything else.
     }
+
     // Clean up, prepare for next segment.
     leftDrive.setPower(0);
     rightDrive.setPower(0);
-
-    // Turn off RUN_TO_POSITION.
-    // Todo: is this right? Does not agree with comment.
     leftDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
     rightDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
   }
 
   ElapsedTime runtime = new ElapsedTime();
+  /*    Sigmoid profile for change of some variable that this Pullbot can use
+  . "Sigmoid" means a graph of the variable looks like the letter S. The
+    Greek name for that letter is "sigma".
 
-  // Sigmoid profile for change of speed on a single motor. Todo: test on two
-  //  segments.
-  int changeSpeedSigmoid (double time2DoIt, double startSpeed, double endSpeed,
-                          DcMotor someMotor)
-  {
+    It makes a variable v, like robot speed, follow a sigmoid speed vs time
+    function over the interval (0, 1). In that interval, the variable smoothly
+    and gradually increases from zero to 1:
+
+    v (t) = 0.5 - 0.5 * cos (πt)
+
+    Then it slows down to gently approach v = 0.
+
+    The domain and time range (period) can be scaled. The initial value of v can
+    be other than zero. Generalizing with all these possibilities:
+
+    v (t) = Vo + Vscale * (0.5 - 0.5 * cos (πt/period))
+
+    Down in the task layer are methods built up out of this primitive layer
+    method. Example: turnArcRadiusSigmoid.
+  */
+  int changeSpeedSigmoid(double time2DoIt, double startSpeed, double endSpeed,
+                         DcMotor someMotor) {
     int Counts = 0;
     double time;
     double power;
     double powerScale = endSpeed - startSpeed;
     do {
       time = runtime.time();
-      power = startSpeed + powerScale * (0.5 - 0.5 * Math.cos(Math.PI * time / time2DoIt));
+      power =
+          startSpeed + powerScale * (0.5 - 0.5 * Math.cos(Math.PI * time / time2DoIt));
       someMotor.setPower(power);
     } while (time < time2DoIt);
     Counts = someMotor.getCurrentPosition();
@@ -497,7 +513,8 @@ public class Pullbot extends GenericFTCRobot {
   }
 
   /*                         Task layer.                    */
-  // Opmodes are built up out of methods at this layer.
+  // These methods are built up out of primitive layer methods. Opmodes are
+  // built up out of methods at this layer.
 
   //  This one requires no command layer to hardware layer translation.
   //  Just continue going straight.
@@ -526,8 +543,7 @@ public class Pullbot extends GenericFTCRobot {
     // One or both turning arcs could be negative.
     // Degenerate cases: angle = 0, R = 0, R = d/2, R = +infinity (straight
     // drive).
-    // Calculate 2 target distances, 2 speeds. Then feed 'em to
-    // encoderDrive.
+    // Calculate 2 target distances, 2 speeds. Then feed 'em to encoderDrive.
     // Arc lengths are angle * radius adjusted for the drive wheels: one
     // shorter, the other longer. Speeds need to be adjusted as well.
     // TODO: handle 4 quadrant cases: forward CW, forward CCW, back CW,
@@ -553,8 +569,8 @@ public class Pullbot extends GenericFTCRobot {
     turnAngleRadiusDrive(speed, targetAngle, radius);
   }
 
-  public double turnArcRadiusSigmoid (double startSpeed, double endSpeed,
-                                      double arc, double radius){
+  public double turnArcRadiusSigmoid(double startSpeed, double endSpeed,
+                                     double arc, double radius) {
     double time;
     double speed;
     double leftSpeed, rightSpeed;
@@ -562,21 +578,23 @@ public class Pullbot extends GenericFTCRobot {
     double averageSpeed = (startSpeed + endSpeed) / 2.0;
     // Todo: What if radius is negative?
     double turnFudgeFactor =
-        (radius + DRIVE_WHEEL_SEPARATION/2.0) / radius;
+        (radius + DRIVE_WHEEL_SEPARATION / 2.0) / radius;
     double time2DoIt = arc / (averageSpeed * MAX_DRIVE_SPEED);
     runtime.reset();
     do {
       time = runtime.time();
-      speed = startSpeed + speedScale * (0.5 - 0.5 * Math.cos(Math.PI * time / time2DoIt));
+      speed =
+          startSpeed + speedScale * (0.5 - 0.5 * Math.cos(Math.PI * time / time2DoIt));
       leftSpeed = -speed / turnFudgeFactor;
       rightSpeed = -speed * turnFudgeFactor;
-      // Normalize speeds so greater is 1, and the lesser is scaled down by the lesser/greater ratio.
+      // Normalize speeds so greater is 1, and the lesser is scaled down by
+      // the lesser/greater ratio.
       if (Math.abs(leftSpeed) > 1.0) {
-        rightSpeed = rightSpeed/ Math.abs(leftSpeed);
+        rightSpeed = rightSpeed / Math.abs(leftSpeed);
         leftSpeed = Math.signum(leftSpeed); // was -1.0
       }
       if (Math.abs(rightSpeed) > 1.0) {
-        leftSpeed = leftSpeed/ Math.abs(rightSpeed);
+        leftSpeed = leftSpeed / Math.abs(rightSpeed);
         rightSpeed = Math.signum(rightSpeed); // was -1.0
       }
 
@@ -625,25 +643,24 @@ public class Pullbot extends GenericFTCRobot {
 
   /*                      Command layer.                    */
   // Human driver issues commands with gamepad.
-  public void enableNudge () {
-    // Gamepad mapping is similar to tank drive.
-    if (currentOpMode.gamepad1.left_trigger > 0){
-      // nudge left wheel forward a little
-      //moveMotor(leftDrive, NUDGE_SPEED, NUDGE_INCHES);
-      leftDrive.setPower (-NUDGE_SPEED);
-    }
-    if (currentOpMode.gamepad1.right_trigger > 0){
-      // nudge right wheel forward a little
+  public void enableNudge() {
 
+    // Gamepad mapping is similar to tank drive.
+    if (currentOpMode.gamepad1.left_trigger > 0) {
+      // nudge left wheel forward a little
+      leftDrive.setPower(-NUDGE_SPEED);
+    }
+    if (currentOpMode.gamepad1.right_trigger > 0) {
+      // nudge right wheel forward a little
       rightDrive.setPower(-NUDGE_SPEED);
     }
-    if (currentOpMode.gamepad1.left_bumper){
+    if (currentOpMode.gamepad1.left_bumper) {
       // nudge left wheel back a little
-      leftDrive.setPower (NUDGE_SPEED);
+      leftDrive.setPower(NUDGE_SPEED);
     }
-    if (currentOpMode.gamepad1.right_bumper){
+    if (currentOpMode.gamepad1.right_bumper) {
       // nudge right wheel back a little
-      rightDrive.setPower (NUDGE_SPEED);
+      rightDrive.setPower(NUDGE_SPEED);
     }
   }
 
@@ -651,17 +668,49 @@ public class Pullbot extends GenericFTCRobot {
     //  Tank drive with the two sticks.
     double leftCommand = currentOpMode.gamepad1.left_stick_y;
     double rightCommand = currentOpMode.gamepad1.right_stick_y;
-    leftDrive.setPower(temperedControl(leftCommand));
-    rightDrive.setPower(temperedControl(rightCommand));
+    leftDrive.setPower(Range.clip(temperedControl(leftCommand), -1.0, 1.0));
+    rightDrive.setPower(Range.clip(temperedControl(rightCommand), -1.0, 1.0));
   }
 
   public void simpleDrive() {
     //  Left stick for fore-and-aft, right one for turns.
     double drive = currentOpMode.gamepad1.left_stick_y;
-    double turn  = currentOpMode.gamepad1.right_stick_x/2.0;
-    leftDrive.setPower(temperedControl(drive - turn));
+    double turn = currentOpMode.gamepad1.right_stick_x;
+    double driveCommand = temperedControl(drive);
+    driveCommand = Range.clip(driveCommand, -1.0, 1.0);
+    double turnCommand = temperedControl(turn);
+    turnCommand = Range.clip(turnCommand, -1.0, 1.0);
+    // Might have to wait until here to clip, maybe normalize.
+    leftDrive.setPower(temperedControl(drive - turn)); // turn/2.0?
     rightDrive.setPower(temperedControl(drive + turn));
   }
 
+  public void oneStickDrive() {
+    double sumPower = 0.0;
+    double diffPower = 0.0;
+    double leftMotorPower = 0.0;
+    double rightMotorPower = 0.0;
+    double maxPower = 0.0;
+    final double MAX_POWER = 1.0;
+
+    // calculate sum and difference of motor powers.
+    sumPower = currentOpMode.gamepad1.left_stick_y; // forward stick is
+    // negative; we want power forward.
+    diffPower = -currentOpMode.gamepad1.left_stick_x; // left-right stick
+    // steers by running motors differently.
+
+    // calculate motor power as a linear combination of sum and difference.
+    leftMotorPower = (sumPower + diffPower) / 2;
+    rightMotorPower = (sumPower - diffPower) / 2;
+
+    // clip illegal power levels.
+    maxPower = Math.max(Math.abs(leftMotorPower), Math.abs(rightMotorPower));
+    maxPower = Math.min(maxPower, MAX_POWER);
+
+    // eg: Run wheels in tank mode (note: The joystick goes negative when
+    // pushed forwards)
+    leftDrive.setPower(leftMotorPower);
+    rightDrive.setPower(rightMotorPower);
+  }
   // Macros can go here. Most will be used in the opmodes.
 }

@@ -39,7 +39,6 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -50,21 +49,18 @@ import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackable;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackableDefaultListener;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackables;
+
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.hardwareMap;
 import static org.firstinspires.ftc.robotcore.external.navigation.AngleUnit.DEGREES;
 import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.XYZ;
 import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.YZX;
 import static org.firstinspires.ftc.robotcore.external.navigation.AxesReference.EXTRINSIC;
 import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
-import org.openftc.easyopencv.OpenCvCamera;
-import org.openftc.easyopencv.OpenCvCameraFactory;
-import org.openftc.easyopencv.OpenCvCameraRotation;
-import org.openftc.easyopencv.OpenCvInternalCamera2;
 
-import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
+//import static org.firstinspires.ftc.robotcore.external
+// .BlocksOpModeCompanion.hardwareMap;
 //import static org.firstinspires.ftc.teamcode.Navigator
 // .RingOrientationAnalysisPipeline.Stage.values;
 
@@ -84,7 +80,7 @@ import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocaliz
  * v 0.2    12/28/20 hollowed out, then filled with Vuforia initialization
  *          code from Drive2XYHeading. That's the same code as used by
  *          Scrimmage3Teleop. Those two opmodes will eventually instantiate
- *          a Navigator.
+ *          a Navigator. 12/29/20: used in Scrimmage3TeleOp and Drive2XYHeading.
  */
 
 public class Navigator extends GenericFTCRobot {
@@ -100,8 +96,9 @@ public class Navigator extends GenericFTCRobot {
   // NOTE: If you are running on a CONTROL HUB, with only one USB WebCam, you
   // must select CAMERA_CHOICE = BACK; and PHONE_IS_PORTRAIT = false;
   //
-  private static final VuforiaLocalizer.CameraDirection CAMERA_CHOICE = BACK;
-  private static final boolean PHONE_IS_PORTRAIT = false;
+  public static final VuforiaLocalizer.CameraDirection CAMERA_CHOICE = BACK;
+  // Todo: should this be Pullbot.BACK?
+  public static final boolean PHONE_IS_PORTRAIT = false;
 
   /*
    * IMPORTANT: You need to obtain your own license key to use Vuforia. The
@@ -120,60 +117,29 @@ public class Navigator extends GenericFTCRobot {
    *  site
    * and paste it in to your code on the next line, between the double quotes.
    */
-  private static final String VUFORIA_KEY =
+  public static final String VUFORIA_KEY =
       GenericFTCRobot.VUFORIA_KEY;
 
   // Since ImageTarget trackables use mm to specifiy their dimensions, we
   // must use mm for all the physical dimension.
   // We will define some constants and conversions here
-  private static final float mmPerInch = 25.4f;
-  private static final float mmTargetHeight = (6) * mmPerInch;          //
+
+  public static final float mmTargetHeight =
+      (6) * GenericFTCRobot.mmPerInch;          //
   // the height of the center of the target image above the floor
 
   // Constants for perimeter targets
-  private static final float halfField = 72 * mmPerInch;
-  private static final float quadField = 36 * mmPerInch;
+  private static final float halfField = 72 * GenericFTCRobot.mmPerInch;
+  private static final float quadField = 36 * GenericFTCRobot.mmPerInch;
 
   // Class Members
-  private OpenGLMatrix lastLocation = null;
-  private VuforiaLocalizer vuforia = null;
-  private boolean targetVisible = false;
-  private float phoneXRotate = 0;
-  private float phoneYRotate = 0;
-  private float phoneZRotate = 0;
-
-  double yCorrection = -0.04;
-  double headingCorrection = 0.5;
-  static final double STRAIGHT_SPEED = 0.6;
-  static final double TURN_SPEED = 0.2;
-  static final double MAX_CORRECTION = TURN_SPEED;
-  static final double MIN_CORRECTION = -TURN_SPEED;
-  double targetX = 74.0; // Aim for robot front to end up near the picture.
-  double currentX = 0;  // We'll refine this by Vuforia if target image is
-  // visible.
-  double errorX = currentX - targetX;
-  static final double ERROR_X_TOLERANCE = 16.0;
-  // avoids large and unstable bearing changes on final approach.
-  double targetY = 35.5; // Also so robot can be near the picture.
-  double currentY;
-  double errorY;
-  static final double ERROR_Y_TOLERANCE = 1.0;
-  double targetHeadingDegrees = 0.0;
-  double targetHeadingRadians = targetHeadingDegrees * Math.PI / 180.0;
-  double currentHeadingDegrees;
-  double currentHeadingRadians;
-  double errorHeadingDegrees;
-  double errorHeadingRadians;
-
-  double targetBearingRadians = 0.0;
-  double targetBearingDegrees = targetBearingRadians * 180 / Math.PI;
-  double currentBearingRadians;
-  double errorBearingRadians;
-  double currentBearingDegrees;
-  double errorBearingDegrees;
-
-  double correction = 0.0;
-
+  public OpenGLMatrix robotFromCamera;
+  public OpenGLMatrix lastLocation = null;
+  public VuforiaLocalizer vuforia = null;
+  public boolean targetVisible = false;
+  public float phoneXRotate = 0;
+  public float phoneYRotate = 0;
+  public float phoneZRotate = 0;
 
   // Initialization.
   HardwareMap hwMap = null;
@@ -188,8 +154,12 @@ public class Navigator extends GenericFTCRobot {
     currentOpMode = linearOpMode;
   }
 
+  public int cameraMonitorViewId;
+
+  public VuforiaTrackables targetsUltimateGoal;
+  public List<VuforiaTrackable> allTrackables;
   public String init(HardwareMap someHWMap) {
-    String initializationReport = "";
+    String initializationReport = "Navigator initialization: ";
     hwMap = someHWMap;
 
     /*
@@ -200,17 +170,19 @@ public class Navigator extends GenericFTCRobot {
      * If no camera monitor is desired, use the parameter-less constructor
      * instead (commented out below).
      */
-    int cameraMonitorViewId =
-        hardwareMap.appContext.getResources().getIdentifier(
+    cameraMonitorViewId =
+        hwMap.appContext.getResources().getIdentifier(
             "cameraMonitorViewId", "id",
-            hardwareMap.appContext.getPackageName());
+            hwMap.appContext.getPackageName());
+    initializationReport += "Camera Id: " + cameraMonitorViewId + ". ";
+
     VuforiaLocalizer.Parameters parameters =
         new VuforiaLocalizer.Parameters(cameraMonitorViewId);
 
     // VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer
     // .Parameters();
 
-    parameters.vuforiaLicenseKey = VUFORIA_KEY;
+    parameters.vuforiaLicenseKey = GenericFTCRobot.VUFORIA_KEY;
     parameters.cameraDirection = CAMERA_CHOICE;
 
     // Make sure extended tracking is disabled for this example.
@@ -222,7 +194,7 @@ public class Navigator extends GenericFTCRobot {
     // Load the data sets for the trackable objects. These particular data
     // sets are stored in the 'assets' part of our application.
     VuforiaTrackables targetsUltimateGoal =
-        this.vuforia.loadTrackablesFromAsset("UltimateGoal");
+        vuforia.loadTrackablesFromAsset("UltimateGoal");
     VuforiaTrackable blueTowerGoalTarget = targetsUltimateGoal.get(0);
     blueTowerGoalTarget.setName("Blue Tower Goal Target");
     VuforiaTrackable redTowerGoalTarget = targetsUltimateGoal.get(1);
@@ -233,10 +205,12 @@ public class Navigator extends GenericFTCRobot {
     blueAllianceTarget.setName("Blue Alliance Target");
     VuforiaTrackable frontWallTarget = targetsUltimateGoal.get(4);
     frontWallTarget.setName("Front Wall Target");
-
+    initializationReport += "Loaded " + targetsUltimateGoal.size() + " " +
+        "targets" +
+        ". ";
     // For convenience, gather together all the trackable objects in one
     // easily-iterable collection */
-    List<VuforiaTrackable> allTrackables = new ArrayList<VuforiaTrackable>();
+    allTrackables = new ArrayList<VuforiaTrackable>();
     allTrackables.addAll(targetsUltimateGoal);
 
     /**
@@ -330,14 +304,16 @@ public class Navigator extends GenericFTCRobot {
     // Next, translate the camera lens to where it is on the robot.
     // In this example, it is centered (left to right), but forward of the
     // middle of the robot, and above ground level.
-    final float CAMERA_FORWARD_DISPLACEMENT = 4.0f * mmPerInch;   // eg:
+    final float CAMERA_FORWARD_DISPLACEMENT =
+        4.0f * GenericFTCRobot.mmPerInch;   // eg:
     // Camera is 4 Inches in front of robot center
-    final float CAMERA_VERTICAL_DISPLACEMENT = 8.0f * mmPerInch;   // eg:
+    final float CAMERA_VERTICAL_DISPLACEMENT =
+        8.0f * GenericFTCRobot.mmPerInch;   // eg:
     // Camera is 8 Inches above ground
     final float CAMERA_LEFT_DISPLACEMENT = 0;     // eg: Camera is ON the
     // robot's center line
 
-    OpenGLMatrix robotFromCamera = OpenGLMatrix
+    robotFromCamera = OpenGLMatrix
         .translation(CAMERA_FORWARD_DISPLACEMENT, CAMERA_LEFT_DISPLACEMENT,
             CAMERA_VERTICAL_DISPLACEMENT)
         .multiplied(Orientation.getRotationMatrix(EXTRINSIC, YZX, DEGREES,
@@ -345,9 +321,11 @@ public class Navigator extends GenericFTCRobot {
 
     /**  Let all the trackable listeners know where the phone is.  */
     for (VuforiaTrackable trackable : allTrackables) {
-      ((VuforiaTrackableDefaultListener) trackable.getListener()).setPhoneInformation(robotFromCamera, parameters.cameraDirection);
+      ((VuforiaTrackableDefaultListener)
+          trackable.getListener()).setPhoneInformation(robotFromCamera, parameters.cameraDirection);
     }
-
+    initializationReport += allTrackables.size() + " trackables got their " +
+        "camera location and direction. ";
     // WARNING:
     // In this sample, we do not wait for PLAY to be pressed.  Target
     // Tracking is started immediately when INIT is pressed.
@@ -368,9 +346,8 @@ public class Navigator extends GenericFTCRobot {
     return initializationReport;
     };
 
-  public String Hello() {
-    return "Hello, world, from Navigator!";
-  }
+  //  Usage methods go here.
+
 }
 
 

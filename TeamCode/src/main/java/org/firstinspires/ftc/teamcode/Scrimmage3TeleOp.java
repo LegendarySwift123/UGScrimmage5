@@ -77,9 +77,9 @@ public class Scrimmage3TeleOp extends LinearOpMode {
     robot.leftDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     robot.rightDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     while (!isStopRequested()) {
-      //robot.simpleDrive();
+      robot.simpleDrive();
       //robot.tankDrive();
-      robot.oneStickDrive();
+      //robot.oneStickDrive();
       robot.enableNudge();
 
       // check all the trackable targets to see which one (if any) is visible.

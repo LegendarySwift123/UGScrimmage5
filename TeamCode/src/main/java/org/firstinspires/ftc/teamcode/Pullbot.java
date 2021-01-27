@@ -42,8 +42,8 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
@@ -81,8 +81,11 @@ import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocaliz
  * <p>
  * Motor channel:  Left front  drive motor:        "motor0"
  * Motor channel:  Right front drive motor:        "motor1"
- * Servo channel:                                  "arm"
+ * Motor channel:  Flexes the arm elbow:           "arm"
  * Color sensor:                                   "colorSensor"
+ *
+ * Before INITializing, manually move the arm to its initial position: back
+ * over the robot, pointing down at 45°.
  */
 
 /* Version history
@@ -104,6 +107,9 @@ import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocaliz
  * v 3.3beta  12/26/20 Production candidate for Scrimmage 3, and cleanup of
  *            the 12/24 Pullbot mess.
  * v 3.3  1/4/21 Simplified Ring shape detection.
+ * v 3.4  1/26/21 Servo arm replaced with heavy, gear driven motor arm. It
+ *        has a passive Wobble Goal grabber, capable of scoring it into the Drop
+ *        Zone.
  */
 
 public class Pullbot extends GenericFTCRobot {
@@ -113,14 +119,9 @@ public class Pullbot extends GenericFTCRobot {
   public RingOrientationAnalysisPipeline ringPipeline;
   // Where the camera lens with respect to the robot.
   // On this robot class, it is centered (left to right), over the drive
-  // wheel axis.
-  public static final float CAMERA_FORWARD_DISPLACEMENT =
-      4.0f * GenericFTCRobot.mmPerInch;   //
-  // eg:
-  // Camera is 4 Inches in front of robot center
+  // wheel axis, 6" behind the front of the Pullbot, 6.5 Inches above ground.
   public static final float CAMERA_VERTICAL_DISPLACEMENT =
-      8.0f * GenericFTCRobot.mmPerInch;   // eg:
-  // Camera is 8 Inches above ground
+      6.5f * GenericFTCRobot.mmPerInch;
   public static final float CAMERA_LEFT_DISPLACEMENT = 0;     // eg: Camera
   // is ON the robot's center line
   public static boolean PHONE_IS_PORTRAIT = false;
@@ -158,18 +159,20 @@ public class Pullbot extends GenericFTCRobot {
   static final double MAX_WHEEL_TURNS_PER_SECOND = MAX_MOTOR_RPM / 60; //2.15
   static final double MAX_DRIVE_SPEED =
       MAX_WHEEL_TURNS_PER_SECOND * DISTANCE_PER_TURN; // 23.64"/s
-
-  // Arm related properties
-  public final double DEPLOYED = 1.0;   // arm extended in front of the Pullbot
-  public final double STOWED = 0.0;     // arm retracted back over the Pullbot
   public DcMotorEx leftDrive = null;
   public DcMotorEx rightDrive = null;
-  public Servo arm = null;
+
+  // Arm related properties
+  public final double ARMSPEED = 0.5;
+  public final int DEPLOYED = 1917;   // arm extended in front of the Pullbot
+  public final int OVER_WALL = 1450;
+  public final int STOWED = 0;     // arm retracted back over the Pullbot
+
+  public DcMotorEx arm = null;
 
   // Pullbot specific sensor members.
   public ColorSensor colorSensor;
   public static VuforiaLocalizer.CameraDirection CAMERA_CHOICE = BACK;
-  /* local OpMode members. */
 
   // Initialization.
   HardwareMap hwMap = null;
@@ -180,7 +183,6 @@ public class Pullbot extends GenericFTCRobot {
   public Pullbot() {
     super();
   }
-
   public Pullbot(LinearOpMode linearOpMode) {
     currentOpMode = linearOpMode;
   }
@@ -218,14 +220,14 @@ public class Pullbot extends GenericFTCRobot {
     rightDrive.setDirection(DcMotor.Direction.REVERSE);
     leftDrive.setPower(0);
     rightDrive.setPower(0);
+    arm = hwMap.get(DcMotorEx.class, "arm");
+    arm.setDirection(DcMotorSimple.Direction.FORWARD);
+    // Manually move arm to STOWED position, back over robot at 45°.
+    arm.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+    arm.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-    // Set all motors to run without encoders.
-    // May want to use RUN_USING_ENCODERS if encoders are installed.
     leftDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
     rightDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-
-    // Define and initialize installed servos.
-    arm = hwMap.get(Servo.class, "arm");
 
     return initializationReport;
   }
@@ -402,8 +404,7 @@ public class Pullbot extends GenericFTCRobot {
   /*
    *										Drive Train methods
    */
-  private double NUDGE_SPEED = 0.30;
-  private double NUDGE_INCHES = 1.0;
+  private double NUDGE_SPEED = 0.20;
 
   /*                      Primitive layer.                    */
   // Task layer methods are built up out of members at this layer.
@@ -476,6 +477,7 @@ public class Pullbot extends GenericFTCRobot {
   }
 
   ElapsedTime runtime = new ElapsedTime();
+
   /*    Sigmoid profile for change of some variable that this Pullbot can use
   . "Sigmoid" means a graph of the variable looks like the letter S. The
     Greek name for that letter is "sigma".
@@ -643,6 +645,30 @@ public class Pullbot extends GenericFTCRobot {
 
   /*                      Command layer.                    */
   // Human driver issues commands with gamepad.
+
+  public void enableArm () {
+    arm.setPower(0.0);
+    while (currentOpMode.gamepad1.dpad_up) { // Away from Driver
+      // Move arm towards Field.
+      // Stops when fully extended, even if commanded to go more.
+      if (arm.getCurrentPosition() >= DEPLOYED) {
+        arm.setPower(0.0);
+      } else {
+        arm.setPower(ARMSPEED);
+      }
+    }
+
+    while (currentOpMode.gamepad1.dpad_down) {
+      // Pull arm back over the robot.
+      // Stops when fully retracted, even if commanded to keep coming.
+      if (arm.getCurrentPosition() <= STOWED) {
+        arm.setPower(0.0);
+      } else {
+        arm.setPower(-ARMSPEED);
+      }
+    }
+  }
+
   public void enableNudge() {
 
     // Gamepad mapping is similar to tank drive.

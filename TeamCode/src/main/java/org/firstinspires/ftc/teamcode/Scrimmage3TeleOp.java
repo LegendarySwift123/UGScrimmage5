@@ -76,11 +76,14 @@ public class Scrimmage3TeleOp extends LinearOpMode {
 
     robot.leftDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     robot.rightDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-    while (!isStopRequested()) {
+
+    waitForStart();
+    while (opModeIsActive()) {
       robot.simpleDrive();
       //robot.tankDrive();
       //robot.oneStickDrive();
       robot.enableNudge();
+      robot.enableArm();
 
       // check all the trackable targets to see which one (if any) is visible.
       targetVisible = false;
@@ -102,16 +105,16 @@ public class Scrimmage3TeleOp extends LinearOpMode {
         stop();
       }
 
-      // Provide feedback as to where the robot is located (if we know).
+      // Report robot location if we know.
       if (targetVisible) {
-        // express position (translation) of robot in inches.
+        // Report position (translation) of robot in inches.
         VectorF translation = lastLocation.getTranslation();
         telemetry.addData("Pos (in)", "{X, Y, Z} = %.1f, %.1f, %.1f",
             translation.get(0) / GenericFTCRobot.mmPerInch,
             translation.get(1) / GenericFTCRobot.mmPerInch,
             translation.get(2) / GenericFTCRobot.mmPerInch);
 
-        // express the rotation of the robot in degrees.
+        // Report the rotation of the robot in degrees.
         Orientation rotation = Orientation.getOrientation(lastLocation,
             EXTRINSIC, XYZ, DEGREES);
         telemetry.addData("Rot (deg)", "{Roll, Pitch, Heading} = %.0f, %.0f, " +

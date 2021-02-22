@@ -110,6 +110,8 @@ import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocaliz
  * v 3.4  1/26/21 Servo arm replaced with heavy, gear driven motor arm. It
  *        has a passive Wobble Goal grabber, capable of scoring it into the Drop
  *        Zone.
+ * v 5.0  2/22/21 v 3.4 was v 4.0, for Ultimate Goal Scrimmage 4. Name change
+ *        and little else in this version.
  */
 
 public class Pullbot extends GenericFTCRobot {
